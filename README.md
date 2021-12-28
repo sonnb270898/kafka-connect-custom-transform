@@ -73,7 +73,7 @@
 }
 ```
 to 
-```aidl
+```
  {
     "schema": {
         "type": "struct",
