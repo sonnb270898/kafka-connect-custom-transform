@@ -1,5 +1,8 @@
-## USAGE
+## Introduce 
 - This repo is used for removes redundant data from Kafka Connect to get a light message to put it to HDFS
+- This repo now only sp for sink connector with debezium source connector
+
+## Usage
 - Example on how to add to your connector:
 ```
 "transforms":"TransformRecord",
@@ -116,13 +119,13 @@ to
 }
 ```
 
-##Run
+## Run
 
 ```
 mvn install 
 ```
 
-- copy file .jar to kafka and config path in plugin.path=/
+- copy file .jar to kafka's folder and config path in plugin.path=/
 
-##Ref 
+## Ref 
 - [confluentinc/kafka-connect-insert-uuid](https://github.com/confluentinc/kafka-connect-insert-uuid)
