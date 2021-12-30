@@ -23,32 +23,27 @@ import static org.apache.kafka.connect.transforms.util.Requirements.requireStruc
 
 public abstract class TransformRecord<R extends ConnectRecord<R>> implements Transformation<R> {
 
-  public static final String OVERVIEW_DOC =
-    "Transform Kafka";
+  private static final String DELETE_OP = "DELETE";
+  private static final String BEFORE = "before";
+  private static final String AFTER = "after";
+  private static final String OP = "op";
+  private static final String TS_MS = "ts_ms";
 
-  private interface ConfigName {
-    String OP = "op";
-    String TS_MS = "ts_ms";
-  }
+  public static final String OVERVIEW_DOC =  "Transform Kafka";
 
   public static final ConfigDef CONFIG_DEF = new ConfigDef()
-    .define(ConfigName.OP, ConfigDef.Type.STRING, "op", ConfigDef.Importance.HIGH,
+    .define(OP, ConfigDef.Type.STRING, "op", ConfigDef.Importance.HIGH,
       "Field name for OP")
-    .define(ConfigName.TS_MS, ConfigDef.Type.STRING, "ts_ms", ConfigDef.Importance.HIGH,
+    .define(TS_MS, ConfigDef.Type.STRING, "ts_ms", ConfigDef.Importance.HIGH,
             "Field name for TS_MS");
 
   private static final String PURPOSE = "TransformRecord";
-
-  private String op;
-  private String ts_ms;
 
   private Cache<Schema, Schema> schemaUpdateCache;
 
   @Override
   public void configure(Map<String, ?> props) {
     final SimpleConfig config = new SimpleConfig(CONFIG_DEF, props);
-    op = config.getString(ConfigName.OP);
-    ts_ms = config.getString(ConfigName.TS_MS);
 
     schemaUpdateCache = new SynchronizedCache<>(new LRUCache<Schema, Schema>(16));
   }
@@ -76,11 +71,11 @@ public abstract class TransformRecord<R extends ConnectRecord<R>> implements Tra
 
     Struct newValue = null;
 
-    if(value.get("op").equals("d")){
-      newValue =  ((Struct) value.get("before"));
+    if(value.get(OP).equals("d") || value.get(OP).equals(DELETE_OP)){
+      newValue =  ((Struct) value.get(BEFORE));
     }
     else {
-      newValue =  ((Struct) value.get("after"));
+      newValue =  ((Struct) value.get(AFTER));
     }
 
     Schema updatedSchema = schemaUpdateCache.get(newValue.schema());
@@ -95,8 +90,8 @@ public abstract class TransformRecord<R extends ConnectRecord<R>> implements Tra
     for (Field field : newValue.schema().fields()) {
       updatedValue.put(field.name(), newValue.get(field));
     }
-    updatedValue.put("op", value.get("op"));
-    updatedValue.put("ts_ms", value.get("ts_ms"));
+    updatedValue.put(OP, value.get(OP));
+    updatedValue.put(TS_MS, value.get(TS_MS));
 
     return newRecord(record, updatedSchema, updatedValue);
   }
@@ -119,8 +114,8 @@ public abstract class TransformRecord<R extends ConnectRecord<R>> implements Tra
       builder.field(field.name(), field.schema());
     }
 
-    builder.field(op, Schema.STRING_SCHEMA);
-    builder.field(ts_ms, Schema.INT64_SCHEMA);
+    builder.field(OP, Schema.STRING_SCHEMA);
+    builder.field(TS_MS, Schema.INT64_SCHEMA);
 
     return builder.build();
   }
