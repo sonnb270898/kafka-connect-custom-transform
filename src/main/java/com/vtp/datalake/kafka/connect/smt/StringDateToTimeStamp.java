@@ -9,44 +9,37 @@ import org.apache.kafka.connect.data.Field;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
-
 import org.apache.kafka.connect.transforms.Transformation;
 import org.apache.kafka.connect.transforms.util.SchemaUtil;
 import org.apache.kafka.connect.transforms.util.SimpleConfig;
 
+import java.sql.Timestamp;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.UUID;
 
 import static org.apache.kafka.connect.transforms.util.Requirements.requireMap;
 import static org.apache.kafka.connect.transforms.util.Requirements.requireStruct;
 
-public abstract class TransformRecord<R extends ConnectRecord<R>> implements Transformation<R> {
+public abstract class StringDateToTimeStamp<R extends ConnectRecord<R>> implements Transformation<R> {
 
-  private static final String DELETE_OP = "DELETE";
-  private static final String BEFORE = "before";
-  private static final String AFTER = "after";
-  private static final String OP = "op";
-  private static final String TS_MS = "ts_ms";
-  private static final String EVENT_TIME = "evt_ms";
-  private static final String SOURCE = "source";
 
-  public static final String OVERVIEW_DOC =  "Transform Kafka";
+  public static final String OVERVIEW_DOC =  "Transform String Date to Timestamp Long Kafka";
+
+  private interface ConfigName {
+    String TS_MS = "ts_ms";
+  }
 
   public static final ConfigDef CONFIG_DEF = new ConfigDef()
-    .define(OP, ConfigDef.Type.STRING, "op", ConfigDef.Importance.HIGH,
-      "Field name for OP")
-    .define(TS_MS, ConfigDef.Type.STRING, "ts_ms", ConfigDef.Importance.HIGH,
+    .define(ConfigName.TS_MS, ConfigDef.Type.STRING, "ts_ms", ConfigDef.Importance.HIGH,
             "Field name for TS_MS");
 
-  private static final String PURPOSE = "TransformRecord";
+  private static final String PURPOSE = "Transform String Date to Timestamp Long Kafka";
 
   private Cache<Schema, Schema> schemaUpdateCache;
 
   @Override
   public void configure(Map<String, ?> props) {
     final SimpleConfig config = new SimpleConfig(CONFIG_DEF, props);
-
     schemaUpdateCache = new SynchronizedCache<>(new LRUCache<Schema, Schema>(16));
   }
 
@@ -69,32 +62,25 @@ public abstract class TransformRecord<R extends ConnectRecord<R>> implements Tra
   }
 
   private R applyWithSchema(R record) {
+
     final Struct value = requireStruct(operatingValue(record), PURPOSE);
 
-    Struct newValue = null;
-
-    if(value.get(OP).equals("d") || value.get(OP).equals(DELETE_OP)){
-      newValue =  ((Struct) value.get(BEFORE));
-    }
-    else {
-      newValue =  ((Struct) value.get(AFTER));
-    }
-
-    Schema updatedSchema = schemaUpdateCache.get(newValue.schema());
+    Schema updatedSchema = schemaUpdateCache.get(value.schema());
 
     if(updatedSchema == null) {
-      updatedSchema = makeUpdatedSchema(newValue.schema());
-      schemaUpdateCache.put(newValue.schema(), updatedSchema);
+      updatedSchema = makeUpdatedSchema(value.schema());
+      schemaUpdateCache.put(value.schema(), updatedSchema);
     }
 
     final Struct updatedValue = new Struct(updatedSchema);
 
-    for (Field field : newValue.schema().fields()) {
-      updatedValue.put(field.name(), newValue.get(field));
+    for (Field field : value.schema().fields()) {
+      updatedValue.put(field.name(), value.get(field));
     }
-    updatedValue.put(OP, value.get(OP));
-    updatedValue.put(TS_MS, value.get(TS_MS));
-    updatedValue.put(EVENT_TIME, ((Struct) value.get(SOURCE)).get(TS_MS));
+
+    String t = (String) value.get("op_ts");
+    long ts_ms = Timestamp.valueOf(t).getTime();
+    updatedValue.put(ConfigName.TS_MS, ts_ms);
     return newRecord(record, updatedSchema, updatedValue);
   }
 
@@ -115,10 +101,7 @@ public abstract class TransformRecord<R extends ConnectRecord<R>> implements Tra
     for (Field field: schema.fields()) {
       builder.field(field.name(), field.schema());
     }
-
-    builder.field(OP, Schema.STRING_SCHEMA);
-    builder.field(TS_MS, Schema.INT64_SCHEMA);
-    builder.field(EVENT_TIME, Schema.INT64_SCHEMA);
+    builder.field(ConfigName.TS_MS, Schema.INT64_SCHEMA);
     return builder.build();
   }
 
@@ -128,7 +111,7 @@ public abstract class TransformRecord<R extends ConnectRecord<R>> implements Tra
 
   protected abstract R newRecord(R record, Schema updatedSchema, Object updatedValue);
 
-  public static class Key<R extends ConnectRecord<R>> extends TransformRecord<R> {
+  public static class Key<R extends ConnectRecord<R>> extends StringDateToTimeStamp<R> {
 
     @Override
     protected Schema operatingSchema(R record) {
@@ -147,7 +130,7 @@ public abstract class TransformRecord<R extends ConnectRecord<R>> implements Tra
 
   }
 
-  public static class Value<R extends ConnectRecord<R>> extends TransformRecord<R> {
+  public static class Value<R extends ConnectRecord<R>> extends StringDateToTimeStamp<R> {
 
     @Override
     protected Schema operatingSchema(R record) {
@@ -165,6 +148,7 @@ public abstract class TransformRecord<R extends ConnectRecord<R>> implements Tra
     }
 
   }
+
 }
 
 
